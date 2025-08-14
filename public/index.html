@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Name Place Thing Animal – Multiplayer Edition</title>
+  <meta name="description" content="Play Name Place Thing Animal online with friends. Host, join, and compete in real-time.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css">
+  <!-- AdSense placeholders (replace with real script later) -->
+  <script>
+    // Dummy ad loader; replace with real AdSense snippet later
+    function loadAds() {
+      document.querySelectorAll('.ad-slot').forEach(function(el) {
+        if (!el.querySelector('.ad-placeholder')) {
+          var p = document.createElement('div');
+          p.className = 'ad-placeholder';
+          p.textContent = 'Ad Slot';
+          el.appendChild(p);
+        }
+      });
+    }
+  </script>
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <div class="logo">NPTA</div>
+      <div class="title">
+        <h1>Name Place Thing Animal</h1>
+        <p class="subtitle">Multiplayer Edition</p>
+      </div>
+    </div>
+    <div class="ad-slot ad-top" aria-label="Top banner ad slot"></div>
+  </header>
+
+  <main class="app-main" role="main">
+    <aside class="sidebar">
+      <section class="card">
+        <h2>Play</h2>
+        <div class="stack">
+          <button id="hostBtn" class="btn primary">Host Game</button>
+          <button id="joinBtn" class="btn">Join Game</button>
+        </div>
+      </section>
+
+      <section class="card settings" id="hostSettings" hidden>
+        <h3>Host Settings</h3>
+        <label class="field">
+          <span>Rounds</span>
+          <input type="number" id="roundsInput" min="1" max="26" value="5">
+        </label>
+        <label class="field">
+          <span>Letter Mode</span>
+          <select id="letterMode">
+            <option value="random">Random</option>
+            <option value="sequential">Sequential</option>
+            <option value="custom">Custom</option>
+          </select>
+        </label>
+        <label class="field" id="customLettersWrap" hidden>
+          <span>Custom Letters (comma-separated)</span>
+          <input type="text" id="customLetters" placeholder="A,B,C,D">
+        </label>
+        <button id="createGameBtn" class="btn success">Create Game</button>
+      </section>
+
+      <section class="card settings" id="joinSettings" hidden>
+        <h3>Join Game</h3>
+        <label class="field">
+          <span>Game Code</span>
+          <input type="text" id="joinCode" placeholder="ABC123" maxlength="8">
+        </label>
+        <label class="field">
+          <span>Display Name</span>
+          <input type="text" id="displayName" placeholder="Your name">
+        </label>
+        <button id="doJoinBtn" class="btn primary">Join</button>
+      </section>
+
+      <section class="card">
+        <h2>How to Play</h2>
+        <ol class="howto">
+          <li>Host creates a room and shares the game code.</li>
+          <li>Players join with the code and pick a name.</li>
+          <li>Each round shows a letter. Type answers before time runs out.</li>
+          <li>Host reviews, marks duplicates, and scores are updated live.</li>
+        </ol>
+      </section>
+
+      <div class="ad-slot ad-sidebar" aria-label="Sidebar ad slot"></div>
+    </aside>
+
+    <section class="content">
+      <!-- Waiting Room -->
+      <section id="waitingRoom" class="card" hidden>
+        <div class="room-header">
+          <div>
+            <h2>Waiting Room</h2>
+            <p>Share this code with friends to join.</p>
+          </div>
+          <div class="game-code">
+            <span>Code</span>
+            <strong id="roomCode">—</strong>
+            <button id="copyCodeBtn" class="btn small">Copy</button>
+          </div>
+        </div>
+        <div class="players" id="playersList">
+          <!-- Filled by JS -->
+        </div>
+        <div class="actions">
+          <button id="startGameBtn" class="btn primary" disabled>Start Game</button>
+          <button id="leaveRoomBtn" class="btn danger">Leave Room</button>
+        </div>
+      </section>
+
+      <!-- Game Screen -->
+      <section id="gameScreen" class="card" hidden>
+        <div class="topbar">
+          <div class="letter" id="currentLetter" aria-live="polite">—</div>
+          <div class="timer" id="timer" aria-live="polite" title="Time left">60</div>
+          <div class="phase" id="phaseBadge">Idle</div>
+        </div>
+
+        <div class="grid two">
+          <div>
+            <form id="answersForm" autocomplete="off">
+              <div class="form-grid">
+                <label>Name <input type="text" id="ansName" required></label>
+                <label>Place <input type="text" id="ansPlace" required></label>
+                <label>Thing <input type="text" id="ansThing" required></label>
+                <label>Animal <input type="text" id="ansAnimal" required></label>
+              </div>
+              <div class="actions">
+                <button class="btn primary" id="submitAnswersBtn" type="submit">Submit</button>
+              </div>
+            </form>
+          </div>
+          <div>
+            <h3>Round Players</h3>
+            <div id="roundPlayers" class="players mini"></div>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <section id="hostValidation" hidden>
+          <h3>Host Validation</h3>
+          <div id="validationTableWrap"></div>
+          <div class="actions">
+            <button class="btn success" id="finalizeRoundBtn">Finalize Round</button>
+            <button class="btn" id="nextRoundBtn">Next Round</button>
+          </div>
+        </section>
+      </section>
+
+      <!-- Leaderboard -->
+      <section id="leaderboardScreen" class="card" hidden>
+        <h2>Final Leaderboard</h2>
+        <div id="leaderboardWrap"></div>
+        <div class="actions">
+          <button id="playAgainBtn" class="btn primary">Play Again</button>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <p>© 2025 NPTA Multiplayer • Built with Firebase</p>
+  </footer>
+
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-database-compat.js"></script>
+
+  <script src="./app.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', loadAds);
+  </script>
+</body>
+</html>
