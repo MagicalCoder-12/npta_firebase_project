@@ -22,7 +22,15 @@ var state = { uid:null, displayName:null, roomCode:null, isHost:false, phase:'id
 
 function cleanupSubs(){ state.unsubscribers.forEach(function(fn){ try{ fn(); }catch(e){} }); state.unsubscribers = []; }
 
-auth.onAuthStateChanged(function(user){ if(user){ state.uid = user.uid; } else { auth.signInAnonymously().catch(console.error); } });
+auth.onAuthStateChanged(function(user){
+  if(user){
+    state.uid = user.uid;
+    hostBtn.disabled = false;
+    joinBtn.disabled = false;
+  } else {
+    auth.signInAnonymously().catch(console.error);
+  }
+});
 
 function code(n){ n = n||6; var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; var s=''; for(var i=0;i<n;i++) s += chars.charAt(Math.floor(Math.random()*chars.length)); return s; }
 function AtoZ(){ return 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''); }
@@ -40,6 +48,10 @@ function statsRef(code){ return db.ref('/games/' + code + '/stats'); }
 // UI elements
 var hostBtn = $('#hostBtn');
 var joinBtn = $('#joinBtn');
+
+// Disable buttons until auth is ready
+hostBtn.disabled = true;
+joinBtn.disabled = true;
 var hostSettings = $('#hostSettings');
 var joinSettings = $('#joinSettings');
 var roundsInput = $('#roundsInput');
@@ -91,9 +103,9 @@ if(playAgainBtn) playAgainBtn.addEventListener('click', function(){ location.rel
 
 document.addEventListener('keydown', function(e){ if(e.key === 'Enter' && !submitAnswersBtn.disabled && !answersForm.hasAttribute('hidden')) answersForm.requestSubmit(); });
 
-async function onCreateGame(){ try{ if(!state.uid){ alert('Auth not ready yet. Try again.'); return; } var rounds = parseInt(roundsInput.value || '5'); var mode = letterMode.value; var letters = genLetters(mode, rounds, customLetters.value); var room = code(6); state.roomCode = room; state.isHost = true; state.rounds = rounds; state.roundIndex = 0; state.phase = 'waiting'; var init = { createdAt: now(), host: state.uid, phase: 'waiting', roundIndex: 0, rounds: rounds, letter: '-', letters: letters, timer: 60 }; await gameRef(room).set({ state: init }); await playersRef(room).child(state.uid).set({ name: 'Host', score: 0, online: true, uid: state.uid, lastSeen: now() }); showWaitingRoom(); subscribeRoom(room); }catch(e){ alert(e.message); console.error(e); } }
+async function onCreateGame(){ try{ var rounds = parseInt(roundsInput.value || '5'); var mode = letterMode.value; var letters = genLetters(mode, rounds, customLetters.value); var room = code(6); state.roomCode = room; state.isHost = true; state.rounds = rounds; state.roundIndex = 0; state.phase = 'waiting'; var init = { createdAt: now(), host: state.uid, phase: 'waiting', roundIndex: 0, rounds: rounds, letter: '-', letters: letters, timer: 60 }; await gameRef(room).set({ state: init }); await playersRef(room).child(state.uid).set({ name: 'Host', score: 0, online: true, uid: state.uid, lastSeen: now() }); showWaitingRoom(); subscribeRoom(room); }catch(e){ alert(e.message); console.error(e); } }
 
-async function onJoinGame(){ try{ if(!state.uid){ alert('Auth not ready yet. Try again.'); return; } var room = joinCode.value.trim().toUpperCase(); var name = (displayNameInput.value || '').trim(); if(!room || !name){ alert('Enter a game code and your display name.'); return; } var snapshot = await gameRef(room).child('state').get(); if(!snapshot.exists()){ alert('Game not found.'); return; } state.roomCode = room; state.isHost = false; state.displayName = name; await playersRef(room).child(state.uid).set({ name: name, score: 0, online: true, uid: state.uid, lastSeen: now() }); showWaitingRoom(); subscribeRoom(room); }catch(e){ alert(e.message); console.error(e); } }
+async function onJoinGame(){ try{ var room = joinCode.value.trim().toUpperCase(); var name = (displayNameInput.value || '').trim(); if(!room || !name){ alert('Enter a game code and your display name.'); return; } var snapshot = await gameRef(room).child('state').get(); if(!snapshot.exists()){ alert('Game not found.'); return; } state.roomCode = room; state.isHost = false; state.displayName = name; await playersRef(room).child(state.uid).set({ name: name, score: 0, online: true, uid: state.uid, lastSeen: now() }); showWaitingRoom(); subscribeRoom(room); }catch(e){ alert(e.message); console.error(e); } }
 
 function subscribeRoom(room){
   cleanupSubs();
