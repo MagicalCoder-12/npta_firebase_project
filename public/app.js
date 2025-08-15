@@ -22,7 +22,15 @@ var state = { uid:null, displayName:null, roomCode:null, isHost:false, phase:'id
 
 function cleanupSubs(){ state.unsubscribers.forEach(function(fn){ try{ fn(); }catch(e){} }); state.unsubscribers = []; }
 
-auth.onAuthStateChanged(function(user){ if(user){ state.uid = user.uid; } else { auth.signInAnonymously().catch(console.error); } });
+auth.onAuthStateChanged(function(user){
+  if(user){
+    state.uid = user.uid;
+    hostBtn.disabled = false;
+    joinBtn.disabled = false;
+  } else {
+    auth.signInAnonymously().catch(console.error);
+  }
+});
 
 function code(n){ n = n||6; var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; var s=''; for(var i=0;i<n;i++) s += chars.charAt(Math.floor(Math.random()*chars.length)); return s; }
 function AtoZ(){ return 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''); }
@@ -40,6 +48,10 @@ function statsRef(code){ return db.ref('/games/' + code + '/stats'); }
 // UI elements
 var hostBtn = $('#hostBtn');
 var joinBtn = $('#joinBtn');
+
+// Disable buttons until auth is ready
+hostBtn.disabled = true;
+joinBtn.disabled = true;
 var hostSettings = $('#hostSettings');
 var joinSettings = $('#joinSettings');
 var roundsInput = $('#roundsInput');
@@ -72,6 +84,15 @@ var roundPlayers = $('#roundPlayers');
 
 var hostValidation = $('#hostValidation');
 var validationTableWrap = $('#validationTableWrap');
+validationTableWrap.addEventListener('click', function(e){
+  var target = e.target;
+  if(target.tagName === 'LABEL' && target.dataset.uid){
+    var uid = target.dataset.uid;
+    var cat = target.dataset.cat;
+    var status = target.dataset.status;
+    setValidation(uid, cat, status);
+  }
+});
 var finalizeRoundBtn = $('#finalizeRoundBtn');
 var nextRoundBtn = $('#nextRoundBtn');
 var playAgainBtn = $('#playAgainBtn');
@@ -91,9 +112,9 @@ if(playAgainBtn) playAgainBtn.addEventListener('click', function(){ location.rel
 
 document.addEventListener('keydown', function(e){ if(e.key === 'Enter' && !submitAnswersBtn.disabled && !answersForm.hasAttribute('hidden')) answersForm.requestSubmit(); });
 
-async function onCreateGame(){ try{ if(!state.uid){ alert('Auth not ready yet. Try again.'); return; } var rounds = parseInt(roundsInput.value || '5'); var mode = letterMode.value; var letters = genLetters(mode, rounds, customLetters.value); var room = code(6); state.roomCode = room; state.isHost = true; state.rounds = rounds; state.roundIndex = 0; state.phase = 'waiting'; var init = { createdAt: now(), host: state.uid, phase: 'waiting', roundIndex: 0, rounds: rounds, letter: '-', letters: letters, timer: 60 }; await gameRef(room).set({ state: init }); await playersRef(room).child(state.uid).set({ name: 'Host', score: 0, online: true, uid: state.uid, lastSeen: now() }); showWaitingRoom(); subscribeRoom(room); }catch(e){ alert(e.message); console.error(e); } }
+async function onCreateGame(){ try{ var rounds = parseInt(roundsInput.value || '5'); var mode = letterMode.value; var letters = genLetters(mode, rounds, customLetters.value); var room = code(6); state.roomCode = room; state.isHost = true; state.rounds = rounds; state.roundIndex = 0; state.phase = 'waiting'; var init = { createdAt: now(), host: state.uid, phase: 'waiting', roundIndex: 0, rounds: rounds, letter: '-', letters: letters, timer: 60 }; await gameRef(room).set({ state: init }); await playersRef(room).child(state.uid).set({ name: 'Host', score: 0, online: true, uid: state.uid, lastSeen: now() }); showWaitingRoom(); subscribeRoom(room); }catch(e){ alert(e.message); console.error(e); } }
 
-async function onJoinGame(){ try{ if(!state.uid){ alert('Auth not ready yet. Try again.'); return; } var room = joinCode.value.trim().toUpperCase(); var name = (displayNameInput.value || '').trim(); if(!room || !name){ alert('Enter a game code and your display name.'); return; } var snapshot = await gameRef(room).child('state').get(); if(!snapshot.exists()){ alert('Game not found.'); return; } state.roomCode = room; state.isHost = false; state.displayName = name; await playersRef(room).child(state.uid).set({ name: name, score: 0, online: true, uid: state.uid, lastSeen: now() }); showWaitingRoom(); subscribeRoom(room); }catch(e){ alert(e.message); console.error(e); } }
+async function onJoinGame(){ try{ var room = joinCode.value.trim().toUpperCase(); var name = (displayNameInput.value || '').trim(); if(!room || !name){ alert('Enter a game code and your display name.'); return; } var snapshot = await gameRef(room).child('state').get(); if(!snapshot.exists()){ alert('Game not found.'); return; } state.roomCode = room; state.isHost = false; state.displayName = name; await playersRef(room).child(state.uid).set({ name: name, score: 0, online: true, uid: state.uid, lastSeen: now() }); showWaitingRoom(); subscribeRoom(room); }catch(e){ alert(e.message); console.error(e); } }
 
 function subscribeRoom(room){
   cleanupSubs();
@@ -123,9 +144,9 @@ function tickTimer(){ if(!state.isHost) return; clearInterval(timerHandle); time
 
 async function onSubmitAnswers(e){ e.preventDefault(); if(!state.roomCode || state.phase !== 'playing') return; if(state.answersSubmitted) return; var data = { name: ansName.value.trim(), place: ansPlace.value.trim(), thing: ansThing.value.trim(), animal: ansAnimal.value.trim() }; await answersRef(state.roomCode, state.roundIndex).child(state.uid).set(data); state.answersSubmitted = true; submitAnswersBtn.disabled = true; answersForm.querySelectorAll('input').forEach(function(i){ i.disabled = true; }); }
 
-async function renderValidation(){ if(!state.isHost || !state.roomCode) return; var ansSnap = await answersRef(state.roomCode, state.roundIndex).get(); var answers = ansSnap.val() || {}; var playersSnap = await playersRef(state.roomCode).get(); var players = playersSnap.val() || {}; var cats = ['name','place','thing','animal']; var table = el('table',{class:'table'},[]); var thead = el('thead',{}, [ el('tr',{}, [ el('th',{},['Player']) ].concat(cats.map(function(c){ return el('th',{},[c.toUpperCase()]); })).concat([ el('th',{},['Actions']) ]) ) ]); var tbody = el('tbody',{},[]); table.appendChild(thead); table.appendChild(tbody); Object.keys(players).forEach(function(uid){ var row = el('tr',{},[]); row.appendChild(el('td',{},[ players[uid].name || 'Player' ])); cats.forEach(function(cat){ var val = (answers[uid] && answers[uid][cat]) ? answers[uid][cat] : ''; var cell = el('td',{},[]); var group = el('div',{}, [ el('div',{},[ val || '—' ]), el('div',{},[ el('label',{class:'badge accept', onclick:'setValidation("'+uid+'","'+cat+'","accept")'},['Accept']), ' ', el('label',{class:'badge duplicate', onclick:'setValidation("'+uid+'","'+cat+'","duplicate")'},['Duplicate']), ' ', el('label',{class:'badge reject', onclick:'setValidation("'+uid+'","'+cat+'","reject")'},['Reject']) ]) ]); cell.appendChild(group); row.appendChild(cell); }); row.appendChild(el('td',{},[ el('button',{class:'btn small', onclick:'autoMarkDuplicates()'},['Auto Duplicates']) ])); tbody.appendChild(row); }); validationTableWrap.innerHTML = ''; validationTableWrap.appendChild(table); hostValidation.hidden = false; }
+async function renderValidation(){ if(!state.isHost || !state.roomCode) return; var ansSnap = await answersRef(state.roomCode, state.roundIndex).get(); var answers = ansSnap.val() || {}; var playersSnap = await playersRef(state.roomCode).get(); var players = playersSnap.val() || {}; var cats = ['name','place','thing','animal']; var table = el('table',{class:'table'},[]); var thead = el('thead',{}, [ el('tr',{}, [ el('th',{},['Player']) ].concat(cats.map(function(c){ return el('th',{},[c.toUpperCase()]); })).concat([ el('th',{},['Actions']) ]) ) ]); var tbody = el('tbody',{},[]); table.appendChild(thead); table.appendChild(tbody); Object.keys(players).forEach(function(uid){ var row = el('tr',{},[]); row.appendChild(el('td',{},[ players[uid].name || 'Player' ])); cats.forEach(function(cat){ var val = (answers[uid] && answers[uid][cat]) ? answers[uid][cat] : ''; var cell = el('td',{},[]); var group = el('div',{}, [ el('div',{},[ val || '—' ]), el('div',{},[ el('label',{class:'badge accept', 'data-uid':uid, 'data-cat':cat, 'data-status':'accept'},['Accept']), ' ', el('label',{class:'badge duplicate', 'data-uid':uid, 'data-cat':cat, 'data-status':'duplicate'},['Duplicate']), ' ', el('label',{class:'badge reject', 'data-uid':uid, 'data-cat':cat, 'data-status':'reject'},['Reject']) ]) ]); cell.appendChild(group); row.appendChild(cell); }); row.appendChild(el('td',{},[ el('button',{class:'btn small', onclick:'autoMarkDuplicates()'},['Auto Duplicates']) ])); tbody.appendChild(row); }); validationTableWrap.innerHTML = ''; validationTableWrap.appendChild(table); hostValidation.hidden = false; }
 
-async function setValidation(uid, cat, status){ // using string-based onclick bridge
+async function setValidation(uid, cat, status){
   try{
     // convert uid, cat, status to proper types if necessary
     await validationRef(state.roomCode, state.roundIndex).child(uid).update((function(){ var o = {}; o[cat] = status; return o; })());
